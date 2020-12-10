@@ -143,6 +143,15 @@ RTCRay PathTracer::getRay(Vector3 origin, Vector3 direction) {
 	return ray;
 }
 
+float PathTracer::getReflectionCoefficient(Vector3 d, Vector3 n, float ior1, float ior2) {
+	float r0 = pow((ior1 - ior2) / (ior1 + ior2), 2);
+	float theta_t = acos(n.DotProduct(d));
+	float theta_i = asin((ior1 * sin(theta_t)) / ior2);
+	float theta = ior1 <= ior2 ? theta_i : theta_t;
+	if (theta > M_PI_2) theta = float(M_PI - theta);
+	return r0 + (1 - r0)*pow(1 - cos(theta), 5);
+}
+
 RTCRayHit PathTracer::rayIntersectScene(RTCRay ray) {
 	RTCHit hit;
 	hit.geomID = RTC_INVALID_GEOMETRY_ID;
@@ -186,8 +195,39 @@ Vector3 PathTracer::rotateVector(Vector3 v, Vector3 n) {
 	return Matrix3x3{ o1, o2, n } *v;
 }
 
+
+Vector3 PathTracer::getRefractedVector(Vector3 d, Vector3 n, float ior1, float ior2) {
+	float iorRatio = ior1 / ior2;
+	float phi1 = acos(Vector3{ d.x*-1, d.y*-1, d.z*-1 }.DotProduct(n));
+	float phi2 = asin(sqrt(1 - pow(cos(phi1), 2)));
+
+	return iorRatio * d + (iorRatio*cos(phi1) - cos(phi2)) * n;
+}
+
+Vector3 PathTracer::getReflectedVector(Vector3 d, Vector3 n) {
+	d.Normalize();
+	n.Normalize();
+	Vector3 vec = d - 2 * (d.DotProduct(n))*n;
+	return vec;
+}
+
+
+Color4f PathTracer::getReflectedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level) {
+	if (level > 100) return Color4f{ 0, 0, 0, 1.0f };
+	Vector3 reflectedVector = getReflectedVector(d, n);
+	RTCRay reflectedRay = getRay(hitPoint, reflectedVector);
+	return trace(reflectedRay, level + 1, envIOR);
+}
+
+Color4f PathTracer::getRefractedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level) {
+	Vector3 refractedVector = getRefractedVector(d, n, envIOR, matIOR);
+	RTCRay refractedRay = getRay(hitPoint, refractedVector);
+	return trace(refractedRay, level + 1, matIOR);
+}
+
+
 Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
-	const int multisampling_width = 20;
+	const int multisampling_width = 10;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 
@@ -201,7 +241,7 @@ Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
 			float rand2 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 
 			RTCRay primaryRay = camera_.GenerateRay(x + msX + rand1, y + msY + rand2, this->focalDistance, this->apertureSize, this->rngs[tid]);
-			result_colors[fieldX][fieldY] = pathTrace(primaryRay, 0);
+			result_colors[fieldX][fieldY] = trace(primaryRay, 0);
 		}
 	}
 
@@ -216,8 +256,8 @@ Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
 	return Color4f{ tmpMultisamplingColor.r / multisamplingTotal, tmpMultisamplingColor.g / multisamplingTotal, tmpMultisamplingColor.b / multisamplingTotal, 1.0f };
 }
 
-Color4f PathTracer::pathTrace(RTCRay ray, int level, float rayIOR) {
-	if (level > 1000) {
+Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
+	if (level > 30) {
 		return Color4f{ 0, 0, 0, 0 };
 	}
 	RTCRayHit ray_hit = this->rayIntersectScene(ray);
@@ -242,19 +282,41 @@ Color4f PathTracer::pathTrace(RTCRay ray, int level, float rayIOR) {
 		float pdf;
 
 		switch (material->type) {
-		case 4:
 		case 3:	// MATT MATERIAL
+		{
 			this->getCosWeightedSample(n, omega_i, pdf);
 			RTCRay secondaryRay = getRay(hitPoint, omega_i);
-			Color4f L_i = pathTrace(secondaryRay, level + 1, rayIOR);
+			Color4f L_i = trace(secondaryRay, level + 1, rayIOR);
 			float f_r = float(material->reflectivity / M_PI);
 			//return L_i * f_r * (omega_i.DotProduct(n))
 			float tmp = f_r * (omega_i.DotProduct(n)) / pdf;
 			return Color4f{ L_i.r*tmp, L_i.g*tmp, L_i.b*tmp, 1.0f };
+		}
 
+		case 4:	// DIELECTRIC MATERIAL
+		{
+			float matIOR = rayIOR == material->ior ? 1 : material->ior;
+			auto reflectedLight = this->getReflectedLight(hitPoint, d, n, rayIOR, matIOR, level);
+			auto refractedLight = this->getRefractedLight(hitPoint, d, n, rayIOR, matIOR, level);
 
-			//case 4:	// DIELECTRIC MATERIAL
+			float attenuationRed, attenuationGreen, attenuationBlue;
+			if (rayIOR == material->ior) {	// inside material
+				attenuationRed = exp(-(1 - material->diffuse.x)*ray.tfar);
+				attenuationGreen = exp(-(1 - material->diffuse.y)*ray.tfar);
+				attenuationBlue = exp(-(1 - material->diffuse.z)*ray.tfar);
+			} else {						// in air
+				attenuationRed = 1;
+				attenuationGreen = 1;
+				attenuationBlue = 1;
+			}
 
+			float r = this->getReflectionCoefficient(d, n, rayIOR, matIOR);
+			Color3f attenuation{ attenuationRed, attenuationGreen, attenuationBlue };
+			reflectedLight.a = r;
+			refractedLight.a = 1.0f - r;
+
+			return (reflectedLight + refractedLight) * attenuation;
+		}
 		}
 
 	}

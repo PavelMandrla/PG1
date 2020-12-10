@@ -4,8 +4,8 @@
 #include "structs.h"
 #include "texture.h"
 #include "mymath.h"
-#include "Singleton.h"
 #include "CudaRNG.h"
+#include "PathTracer.h"
 
 /* error reporting function */
 void error_handler( void * user_ptr, const RTCError code, const char * str )
@@ -181,23 +181,23 @@ int tutorial_2()
 
 /* raytracer mainloop */
 int tutorial_3( const std::string file_name, const char * config ) {
-	/*
-	auto crng = std::make_shared<CudaRNG>();
-	RNG rng(5, crng);
-	for (int i = 0; i < 20; i++) {
-		std::cout << i << " - " << rng.getRandNum(0.0f, 1.0f) << std::endl;
-	}
-	*/
-
-
 	//SimpleGuiDX11 gui( 640, 480 );
 	//gui.MainLoop();
-	Raytracer raytracer( 640, 480, deg2rad( 45 ), Vector3( 175, -140, 130 ), Vector3( -70, 40, 0 ), config );
-	//Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250));
+	//Raytracer raytracer( 640, 480, deg2rad( 45 ), Vector3( 175, -140, 130 ), Vector3( -70, 40, 0 ), config );
+	Raytracer raytracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250));
 	//Raytracer raytracer( 640, 480, deg2rad( 90 ), Vector3(-200, 200, -300), Vector3( -20, 20, 0 ), config );
 	//Raytracer raytracer( 640, 480, deg2rad( 90 ), Vector3( 2, 0, 0 ), Vector3( 0, 0, 0 ), config );
 	raytracer.LoadScene( file_name );
 	raytracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}
+
+int pathTracerDemo(const std::string file_name, const char * config) {
+	PathTracer pathtracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250));
+	
+	pathtracer.LoadScene(file_name);
+	pathtracer.MainLoop();
 
 	return EXIT_SUCCESS;
 }

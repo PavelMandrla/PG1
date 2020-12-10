@@ -39,9 +39,18 @@ private:
 
 	RTCRay getRay(Vector3 origin, Vector3 direction);
 	RTCRayHit rayIntersectScene(RTCRay ray);
+
+	float getReflectionCoefficient(Vector3 d, Vector3 n, float ior1, float ior2);
+
 	void getCosWeightedSample(Vector3 n, Vector3 &omega_i, float &pdf);
 	Vector3 rotateVector(Vector3 v, Vector3 n);
 
-	Color4f pathTrace(RTCRay ray, int level, float rayIOR = 1);
+	Vector3 getRefractedVector(Vector3 d, Vector3 n, float ior1, float ior2);
+	Vector3 getReflectedVector(Vector3 d, Vector3 n);
+
+	Color4f getReflectedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level);
+	Color4f getRefractedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level);
+
+	Color4f trace(RTCRay ray, int level, float rayIOR = 1);
 };
 

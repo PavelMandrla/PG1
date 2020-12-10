@@ -419,7 +419,7 @@ bool Raytracer::isBlocked(LightSource lightSrc, Vector3 hitPoint) {
 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 	
-	const int multisampling_width = 50;
+	const int multisampling_width = 100;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
@@ -447,11 +447,7 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 			tmpMultisamplingColor.b += result_colors[fieldX][fieldY].b;
 		}
 	}
-	//return tmpMultisamplingColor;
 	return Color4f{ tmpMultisamplingColor.r / multisamplingTotal, tmpMultisamplingColor.g / multisamplingTotal, tmpMultisamplingColor.b / multisamplingTotal, 1.0f };
-	
-	Color4f expanded = tmpMultisamplingColor.expand();
-	return Color4f{expanded.r / multisamplingTotal, expanded.g / multisamplingTotal, expanded.b / multisamplingTotal, 1.0f }.compress();
 }
 	
 
