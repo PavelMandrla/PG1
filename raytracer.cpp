@@ -203,7 +203,7 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 }
 
 Color4f Raytracer::pathTrace(RTCRay ray, int level, float rayIOR) {
-	if (level > 20) {
+	if (level > 1000) {
 		return Color4f{ 0, 0, 0, 0 };
 	}
 	RTCRayHit ray_hit = this->rayIntersectScene(ray);
@@ -211,9 +211,7 @@ Color4f Raytracer::pathTrace(RTCRay ray, int level, float rayIOR) {
 		RTCGeometry geometry = rtcGetGeometry(scene_, ray_hit.hit.geomID);
 		Material * material = (Material *)(rtcGetGeometryUserData(geometry));
 		
-		if (material->isEmittingLight()) {
-			return material->getEmittedLight();	// RETURN EMITTED LIGHT, IF EMITS LIGHT
-		}
+		if (material->isEmittingLight()) return material->getEmittedLight();	// RETURN EMITTED LIGHT, IF EMITS LIGHT
 
 		Normal3f normal;
 		rtcInterpolate0(geometry, ray_hit.hit.primID, ray_hit.hit.u, ray_hit.hit.v, RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 0, &normal.x, 3);	// get interpolated normal
@@ -246,7 +244,8 @@ Color4f Raytracer::pathTrace(RTCRay ray, int level, float rayIOR) {
 		}
 		
 	}
-	return this->sphericalMap->getBackgroundColor(ray.dir_x, ray.dir_y, ray.dir_z);
+	//return this->sphericalMap->getBackgroundColor(ray.dir_x, ray.dir_y, ray.dir_z);
+	return Color4f{ 0,0,0,1 };
 }
 
 Color4f Raytracer::getReflectedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level) {
@@ -420,15 +419,13 @@ bool Raytracer::isBlocked(LightSource lightSrc, Vector3 hitPoint) {
 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 	
-	const int multisampling_width = 4;
+	const int multisampling_width = 50;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 
 	#pragma omp parallel for num_threads(this->threadCount)
 	for (int fieldX = 0; fieldX < multisampling_width; fieldX++) {
-		//std::mt19937 generator(123);
-		//std::uniform_real_distribution<float> uni_dist(-0.5f / multisampling_width, 0.5f / multisampling_width);
 		float msX = fieldX * (1.0f / multisampling_width);
 		for (int fieldY = 0; fieldY < multisampling_width; fieldY++) {
 			float msY = fieldY * (1.0f / multisampling_width);
@@ -437,38 +434,24 @@ Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 			float rand2 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 
 			RTCRay primaryRay = camera_.GenerateRay(x + msX + rand1, y + msY + rand2, this->focalDistance, this->apertureSize, this->rngs[tid]);
-			//RTCRay primaryRay = camera_.GenerateRay(x + msX + uni_dist(generator), y + msY + uni_dist(generator), this->focalDistance, this->apertureSize);
-			//RTCRay primaryRay = camera_.GenerateRay(x + msX + uni_dist(generator), y + msY + uni_dist(generator));
-			result_colors[fieldX][fieldY] = trace(primaryRay, 0);
-			//result_colors[fieldX][fieldY] = pathTrace(primaryRay, 0);
+			//result_colors[fieldX][fieldY] = trace(primaryRay, 0);
+			result_colors[fieldX][fieldY] = pathTrace(primaryRay, 0);
 		}
 	}
 
-	Color4f tmpMultisamplingColor{ 0.0f, 0.0f, 0.0f, 0.0f };
+	Color4f tmpMultisamplingColor{ 0.0f, 0.0f, 0.0f, 1.0f };
 	for (int fieldX = 0; fieldX < multisampling_width; fieldX++) {
-		
-		for (int fieldY = 0; fieldY < multisampling_width; fieldY++) {
-			//tmpMultisamplingColor += result_colors[fieldX][fieldY];
-			
+		for (int fieldY = 0; fieldY < multisampling_width; fieldY++) {	
 			tmpMultisamplingColor.r += result_colors[fieldX][fieldY].r;
 			tmpMultisamplingColor.g += result_colors[fieldX][fieldY].g;
 			tmpMultisamplingColor.b += result_colors[fieldX][fieldY].b;
-			
 		}
 	}
 	//return tmpMultisamplingColor;
 	return Color4f{ tmpMultisamplingColor.r / multisamplingTotal, tmpMultisamplingColor.g / multisamplingTotal, tmpMultisamplingColor.b / multisamplingTotal, 1.0f };
-	/*
-	int sampleCount = 1000;
-	Color4f res{ 0, 0, 0, 1.0f };
-	RTCRay primaryRay = camera_.GenerateRay(x, y);
-	for (int i = 0; i < sampleCount; i++) {
-		res += pathTrace(primaryRay, 0);
-	}
-	Color4f expanded = res.expand();
-	return res;
-	//return Color4f{expanded.r / sampleCount, expanded.g / sampleCount, expanded.b / sampleCount, 1.0f }.compress();
-	*/
+	
+	Color4f expanded = tmpMultisamplingColor.expand();
+	return Color4f{expanded.r / multisamplingTotal, expanded.g / multisamplingTotal, expanded.b / multisamplingTotal, 1.0f }.compress();
 }
 	
 
@@ -505,7 +488,8 @@ void Raytracer::getCosWeightedSample(Vector3 n, Vector3 & omega_i, float & pdf) 
 	};
 	dir.Normalize();
 
-	pdf = acos(Vector3{ 0,1,0 }.DotProduct(dir));
+	//pdf = acos(Vector3{ 0,1,0 }.DotProduct(dir));
+	pdf = (Vector3{ 0,0,1 }.DotProduct(dir)) / M_PI;
 	omega_i = this->rotateVector(dir, n);
 }
 
@@ -513,7 +497,9 @@ Vector3 Raytracer::rotateVector(Vector3 v, Vector3 n) {
 	Vector3 o1 = (abs(n.x) > abs(n.z)) ? Vector3(-n.y, n.x, 0.0f) : Vector3(0.0f, -n.z, n.y);
 	Vector3 o2 = o1.CrossProduct(n);
 	
-	return Matrix3x3{ o1, n, o2 } * v;
+	//return Matrix3x3{ o1, n, o2 } * v;
+	return Matrix3x3{ o1, o2, n } * v;
+
 }
 
 int Raytracer::Ui()
