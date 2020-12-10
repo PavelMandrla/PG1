@@ -213,7 +213,7 @@ Vector3 PathTracer::getReflectedVector(Vector3 d, Vector3 n) {
 
 
 Color4f PathTracer::getReflectedLight(Vector3 hitPoint, Vector3 d, Vector3 n, float envIOR, float matIOR, int level) {
-	if (level > 100) return Color4f{ 0, 0, 0, 1.0f };
+	if (level > 10) return Color4f{ 0, 0, 0, 1.0f };
 	Vector3 reflectedVector = getReflectedVector(d, n);
 	RTCRay reflectedRay = getRay(hitPoint, reflectedVector);
 	return trace(reflectedRay, level + 1, envIOR);
@@ -227,16 +227,17 @@ Color4f PathTracer::getRefractedLight(Vector3 hitPoint, Vector3 d, Vector3 n, fl
 
 
 Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
-	const int multisampling_width = 10;
+	const int multisampling_width = 20;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 
 	#pragma omp parallel for num_threads(this->threadCount)
 	for (int fieldX = 0; fieldX < multisampling_width; fieldX++) {
+		int tid = omp_get_thread_num();
 		float msX = fieldX * (1.0f / multisampling_width);
 		for (int fieldY = 0; fieldY < multisampling_width; fieldY++) {
 			float msY = fieldY * (1.0f / multisampling_width);
-			int tid = omp_get_thread_num();
+			
 			float rand1 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 			float rand2 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 
@@ -257,15 +258,19 @@ Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
 }
 
 Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
-	if (level > 30) {
+	if (level > 20) {
 		return Color4f{ 0, 0, 0, 0 };
 	}
 	RTCRayHit ray_hit = this->rayIntersectScene(ray);
 	if (ray_hit.hit.geomID != RTC_INVALID_GEOMETRY_ID) {
 		RTCGeometry geometry = rtcGetGeometry(scene_, ray_hit.hit.geomID);
 		Material * material = (Material *)(rtcGetGeometryUserData(geometry));
+		float rho = material->reflectivity > 0.95 ? 0.95 : material->reflectivity;
 
 		if (material->isEmittingLight()) return material->getEmittedLight();	// RETURN EMITTED LIGHT, IF EMITS LIGHT
+
+		int tid = omp_get_thread_num();
+		if (rho < this->rngs[tid].getRandNum(0.0f, 1.0f)) return Color4f{ 0, 0, 0, 1 };
 
 		Normal3f normal;
 		rtcInterpolate0(geometry, ray_hit.hit.primID, ray_hit.hit.u, ray_hit.hit.v, RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE, 0, &normal.x, 3);	// get interpolated normal
@@ -282,6 +287,10 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 		float pdf;
 
 		switch (material->type) {
+		case 2:	//MIRROR
+		{
+			return this->getReflectedLight(hitPoint, d, n, rayIOR, 0, level);
+		}
 		case 3:	// MATT MATERIAL
 		{
 			this->getCosWeightedSample(n, omega_i, pdf);
@@ -289,8 +298,14 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 			Color4f L_i = trace(secondaryRay, level + 1, rayIOR);
 			float f_r = float(material->reflectivity / M_PI);
 			//return L_i * f_r * (omega_i.DotProduct(n))
-			float tmp = f_r * (omega_i.DotProduct(n)) / pdf;
-			return Color4f{ L_i.r*tmp, L_i.g*tmp, L_i.b*tmp, 1.0f };
+			float tmp = f_r * (omega_i.DotProduct(n)) / (pdf * rho);
+
+			return Color4f{ 
+				L_i.r * material->diffuse.x * tmp,
+				L_i.g * material->diffuse.y * tmp,
+				L_i.b * material->diffuse.z * tmp,
+				1.0f
+			};
 		}
 
 		case 4:	// DIELECTRIC MATERIAL
