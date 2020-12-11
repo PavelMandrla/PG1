@@ -21,9 +21,6 @@ public:
 private:
 	void getCosWeightedSample(Vector3 n, Vector3 &omega_i, float &pdf);
 	Vector3 rotateVector(Vector3 v, Vector3 n);
-
-	
-
 	virtual Color4f trace(RTCRay ray, int level, float rayIOR = 1) override;
 };
 

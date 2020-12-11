@@ -180,7 +180,7 @@ int tutorial_2()
 }
 
 /* raytracer mainloop */
-int tutorial_3( const std::string file_name, const char * config ) {
+int raytracerDemo( const std::string file_name, const char * config ) {
 	Raytracer raytracer( 640, 480, deg2rad( 45 ), Vector3( 175, -140, 130 ), Vector3( -70, 40, 0 ), config );
 	raytracer.LoadScene( file_name );
 	raytracer.MainLoop();
@@ -188,7 +188,7 @@ int tutorial_3( const std::string file_name, const char * config ) {
 	return EXIT_SUCCESS;
 }
 
-int pathTracerDemo(const std::string file_name, const char * config) {
+int pathtracerDemo(const std::string file_name, const char * config) {
 	PathTracer pathtracer(320, 240, deg2rad(40.0), Vector3(40, -940, 250), Vector3(0, 0, 250));
 	
 	pathtracer.LoadScene(file_name);

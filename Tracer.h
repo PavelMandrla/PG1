@@ -28,7 +28,7 @@ protected:
 	std::vector<Material *> materials_;
 
 	float focalDistance = 125.0f;
-	float apertureSize = 1.0f;
+	float apertureSize =0.0f;
 
 	RTCRay getRay(Vector3 origin, Vector3 direction);
 	RTCRayHit rayIntersectScene(RTCRay ray);
