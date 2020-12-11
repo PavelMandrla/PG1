@@ -8,7 +8,25 @@ struct Coord2f { float u, v; }; // texture coord structure
 
 struct Triangle3ui { unsigned int v0, v1, v2; }; // indicies of a single triangle, the struct must match certain format, e.g. RTC_FORMAT_UINT3
 
-struct Color3f { float r, g, b; };
+struct Color3f { 
+	float r, g, b; 
+
+	Color3f operator*(float rs) {
+		return Color3f{
+			r * rs,
+			g * rs,
+			b * rs
+		};
+	}
+
+	Color3f operator+(Color3f rs) {
+		return Color3f{
+			r + rs.r,
+			g + rs.g,
+			b + rs.b
+		};
+	}
+};
 
 struct RTC_ALIGN( 16 ) Color4f {
 	struct { float r, g, b, a; }; // a = 1 means that the pixel is opaque

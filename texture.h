@@ -28,6 +28,8 @@ private:
 	int scan_width_{ 0 }; // size of image row (bytes)
 	int pixel_size_{ 0 }; // size of each pixel (bytes)
 	BYTE * data_{ nullptr }; // image data in BGR format
+
+	Color3f valAt(int x, int y) const;
 };
 
 #endif

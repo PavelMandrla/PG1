@@ -9,8 +9,7 @@ Raytracer::Raytracer( const int width, const int height, const float fov_y, cons
 	: Tracer(width, height, fov_y, view_from, view_at, config) {
 }
 
-void Raytracer::LoadScene( const std::string file_name )
-{
+void Raytracer::LoadScene( const std::string file_name ) {
 	const int no_surfaces = LoadOBJ( file_name.c_str(), surfaces_, materials_ );
 	//std::vector<std::shared_ptr<Triangle>> myTriangles;	//BVH
 
@@ -77,8 +76,9 @@ void Raytracer::LoadScene( const std::string file_name )
 	this->bvh->initialize();								//BVH
 	*/
 
-//	this->lightSources.push_back(LightSource(Vector3(-200, 600, -30), Vector3(0.8f, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
-	this->lightSources.push_back(LightSource(Vector3(0,0, -300), Vector3(0.8, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
+	//this->lightSources.push_back(LightSource(Vector3(-200, 600, -30), Vector3(0.8f, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
+	this->lightSources.push_back(LightSource(Vector3(100,0, 300), Vector3(0.8, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
+	//this->lightSources.push_back(LightSource(Vector3(175, -140, 130), Vector3(0.8, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
 	//this->lightSources.push_back(LightSource(Vector3(175, -140, 130), Vector3(0.8f, 0.8f, 0.8f), Vector3(1, 1, 1), Vector3(1, 1, 1)));
 	this->ambient = new LightSource(Vector3(0, 0, 0), Vector3(0.1f, 0.1f, 0.1f), Vector3(0, 0, 0), Vector3(0.0f, 0.0f, 0.0f));
 	this->sphericalMap = std::shared_ptr<SphericalMap>(new SphericalMap("../../../data/museumplein.jpg"));
@@ -123,15 +123,41 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 		*/
 
 		switch (material->type) {
+			case 1: { // LAMBERT SHADER
+				Color4f result{ 0,0,0,1 };
+				auto C = Color4f {
+					material->diffuse.x,
+					material->diffuse.y,
+					material->diffuse.z,
+					1.0f
+				};
+
+				for (auto lightSource : this->lightSources) {
+					if (!this->isBlocked(lightSource, hitPoint)) {
+						Vector3 L = lightSource.postion - hitPoint;
+						L.Normalize();
+						auto LN = L.DotProduct(n);
+
+						result += Color4f{
+							LN * C.r * lightSource.diffuse.x,
+							LN * C.g * lightSource.diffuse.y,
+							LN * C.b * lightSource.diffuse.z,
+							1
+						};
+					}
+				}
+				return result;
+			}
+
 			case 2: { // NORMAL SHADER
 				float r_n = (normal.x + 1) / 2.0f;
 				float g_n = (normal.y + 1) / 2.0f;
 				float b_n = (normal.z + 1) / 2.0f;
 				return Color4f{ b_n, g_n, r_n, 1.0f };
 			}
+
 			case 3: { //PHONG SHADER		
 				float matIOR = rayIOR == material->ior ? 1 : material->ior;
-
 				auto phong = getPhongIllumination(hitPoint, d, n, material, geometry, ray_hit);
 				auto reflectedLight = this->getReflectedLight(hitPoint, d, n, rayIOR, matIOR, level);
 				float r = this->getReflectionCoefficient(d, n, rayIOR, matIOR);
@@ -139,6 +165,7 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 				phong.a = 1.0f - r;
 				return phong + reflectedLight;
 			}
+
 			case 4: { // DIELECTRIC SHADER					
 				float matIOR = rayIOR == material->ior ? 1 : material->ior;
 
@@ -188,25 +215,25 @@ Color4f Raytracer::getPhongIllumination(Vector3 hitPoint, Vector3 d, Vector3 n, 
 		diffuseG = texel.g;
 		diffuseB = texel.b;
 	}
-
+	
+	
 	for (auto lightSrc : this->lightSources) {
-		if (isBlocked(lightSrc, hitPoint)) {
-			continue;
+		if (!isBlocked(lightSrc, hitPoint)) {
+			Vector3 l = lightSrc.postion - hitPoint;
+			l.Normalize();
+			Vector3 lr = 2 * (n.DotProduct(l)) * n - l;
+
+			ligtVal_R += lightSrc.diffuse.x * diffuseR * (n.DotProduct(l));
+			ligtVal_G += lightSrc.diffuse.y * diffuseG * (n.DotProduct(l));
+			ligtVal_B += lightSrc.diffuse.z * diffuseB * (n.DotProduct(l));
+
+			ligtVal_R += lightSrc.specular.x * material->specular.x * pow((-1 * d).DotProduct(lr), material->shininess);
+			ligtVal_G += lightSrc.specular.y * material->specular.y * pow((-1 * d).DotProduct(lr), material->shininess);
+			ligtVal_B += lightSrc.specular.z * material->specular.z * pow((-1 * d).DotProduct(lr), material->shininess);
 		}
-
-		Vector3 l(hitPoint.x - lightSrc.postion.x, hitPoint.y - lightSrc.postion.y, hitPoint.z - lightSrc.postion.z);
-		l.Normalize();
-		Vector3 lr = 2 * (n.DotProduct(l)) * n - l;
-
-		ligtVal_R += lightSrc.diffuse.x * diffuseR * (n.DotProduct(l));
-		ligtVal_G += lightSrc.diffuse.y * diffuseG * (n.DotProduct(l));
-		ligtVal_B += lightSrc.diffuse.z * diffuseB * (n.DotProduct(l));
-
-		ligtVal_R += lightSrc.specular.x * material->specular.x * pow((-1 * d).DotProduct(lr), material->shininess);
-		ligtVal_G += lightSrc.specular.y * material->specular.y * pow((-1 * d).DotProduct(lr), material->shininess);
-		ligtVal_B += lightSrc.specular.z * material->specular.z * pow((-1 * d).DotProduct(lr), material->shininess);
 	}
 	return Color4f{ ligtVal_R, ligtVal_G, ligtVal_B, 1.0 };
+
 }
 
 bool Raytracer::isBlocked(LightSource lightSrc, Vector3 hitPoint) {
@@ -245,7 +272,7 @@ bool Raytracer::isBlocked(LightSource lightSrc, Vector3 hitPoint) {
 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 	
-	const int multisampling_width = 4;
+	const int multisampling_width = 2;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
