@@ -5,7 +5,7 @@
 #include "objloader.h"
 #include <omp.h>
 #include <array>
-
+#include <boost/math/special_functions/beta.hpp>
 
 PathTracer::PathTracer(const int width, const int height, const float fov_y, const Vector3 view_from, const Vector3 view_at, const char * config)
 	: Tracer(width, height, fov_y, view_from, view_at, config) {
@@ -88,7 +88,7 @@ Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
 }
 
 Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
-	if (level > 20) {
+	if (level > 100) {
 		return Color4f{ 0, 0, 0, 0 };
 	}
 	RTCRayHit ray_hit = this->rayIntersectScene(ray);
@@ -166,7 +166,7 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 
 				return (reflectedLight + refractedLight) * attenuation;
 			}
-			case 5: {	// MODIFIED PHONG (energy-conserved)
+			case 20: {	// PHONG
 				int threadId = omp_get_thread_num();
 				float diffuseMax = (std::max)({ material->diffuse.x, material->diffuse.y, material->diffuse.z });
 				float specularMax = (std::max)({ material->specular.x, material->specular.y, material->specular.z });
@@ -201,6 +201,69 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 				
 				f_r = k_d + k_s;
 			}
+			case 6: {	// PHONG (energy-conserved)
+				int threadId = omp_get_thread_num();
+				float diffuseMax = (std::max)({ material->diffuse.x, material->diffuse.y, material->diffuse.z });
+				float specularMax = (std::max)({ material->specular.x, material->specular.y, material->specular.z });
+				float xi_0 = this->rngs[threadId].getRandNum(0, diffuseMax + specularMax);
+
+				if (xi_0 < diffuseMax) {
+					this->getCosWeightedSample(n, omega_i, pdf);
+				} else {
+					this->getCosLobeSample(material->shininess, d, n, omega_i, pdf);
+				}
+
+				RTCRay secondaryRay = getRay(hitPoint, omega_i);
+
+				L_i = trace(secondaryRay, level + 1, rayIOR);
+				L_i.r *= material->diffuse.x;
+				L_i.g *= material->diffuse.y;
+				L_i.b *= material->diffuse.z;
+
+				c_theta_i = n.DotProduct(omega_i);
+
+				auto reflectedVector = this->getReflectedVector(d, n);
+				reflectedVector.Normalize();
+				omega_i.Normalize();
+
+				float theta_r = reflectedVector.DotProduct(omega_i);
+				float theta_i = n.DotProduct(omega_i);
+
+				float I_m = (material->shininess + 2) / (2 * float(M_PI) * theta_i);
+				f_r = Vector3{ material->specular.x, material->specular.y, material->specular.z } * I_m * (std::max)(0.0f, pow(theta_r, material->shininess));
+			}
+			case 5: {
+				int threadId = omp_get_thread_num();
+				float diffuseMax = (std::max)({ material->diffuse.x, material->diffuse.y, material->diffuse.z });
+				float specularMax = (std::max)({ material->specular.x, material->specular.y, material->specular.z });
+				float xi_0 = this->rngs[threadId].getRandNum(0, diffuseMax + specularMax);
+
+				if (xi_0 < diffuseMax) {
+					this->getCosWeightedSample(n, omega_i, pdf);
+				} else {
+					this->getCosLobeSample(material->shininess, d, n, omega_i, pdf);
+				}
+
+				RTCRay secondaryRay = getRay(hitPoint, omega_i);
+
+				L_i = trace(secondaryRay, level + 1, rayIOR);
+				L_i.r *= material->diffuse.x;
+				L_i.g *= material->diffuse.y;
+				L_i.b *= material->diffuse.z;
+
+				c_theta_i = n.DotProduct(omega_i);
+
+				auto reflectedVector = this->getReflectedVector(d, n);
+				reflectedVector.Normalize();
+				omega_i.Normalize();
+
+				float theta_r = reflectedVector.DotProduct(omega_i);
+				float theta_i = n.DotProduct(omega_i);
+
+				float I_m = this->calc_I_M(theta_i, material->shininess);
+				f_r = (Vector3{ material->specular.x, material->specular.y, material->specular.z } / I_m) * (std::max)(0.0f, pow(theta_r, material->shininess));
+			}
+
 		}
 		return Color4f{
 			L_i.r * f_r.x * c_theta_i / pdf,
@@ -211,4 +274,28 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 
 	}
 	return Color4f{ 0,0,0,1 };
+}
+
+inline static float gamma_quot(float a, float b) {
+	return std::exp(std::lgamma(a) - std::lgamma(b));
+}
+
+float ibeta(float x, float a, float b) {
+	return boost::math::beta(a, b, x);
+}
+
+float PathTracer::calc_I_M(float NdotV, float n) {
+	float const& costerm	= NdotV;
+	float sinterm_sq		= 1.0f - costerm * costerm;
+	float halfn				= 0.5f * n;
+
+	float negterm = costerm;
+	if (n > 1e-18f)
+		negterm *= halfn * ibeta(sinterm_sq, halfn, 0.5f);
+
+		return (
+			2 * float(M_PI) * costerm +
+			sqrt(float(M_PI)) * gamma_quot(halfn + 0.5f, halfn + 1.0f) *
+			(std::pow(sinterm_sq, halfn) - negterm)
+		) / (n + 2.0f);
 }

@@ -16,7 +16,7 @@ RNG::RNG(int bufferSize, std::shared_ptr<CudaRNG> cudaRNG) {
 }
 
 RNG::~RNG() {
-	delete this->buffer;
+	//delete this->buffer;
 }
 
 float RNG::getRandNum(float from, float to) {
