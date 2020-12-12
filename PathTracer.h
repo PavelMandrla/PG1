@@ -20,6 +20,7 @@ public:
 	Color4f get_pixel(const int x, const int y, const float t) override;
 private:
 	void getCosWeightedSample(Vector3 n, Vector3 &omega_i, float &pdf);
+	void getCosLobeSample(float gamma, Vector3 d, Vector3 n, Vector3 & omega_i, float & pdf);
 	Vector3 rotateVector(Vector3 v, Vector3 n);
 	virtual Color4f trace(RTCRay ray, int level, float rayIOR = 1) override;
 };

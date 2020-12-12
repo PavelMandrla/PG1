@@ -150,9 +150,9 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 			}
 
 			case 2: { // NORMAL SHADER
-				float r_n = (normal.x + 1) / 2.0f;
-				float g_n = (normal.y + 1) / 2.0f;
-				float b_n = (normal.z + 1) / 2.0f;
+				float r_n = (n.x + 1) / 2.0f;
+				float g_n = (n.y + 1) / 2.0f;
+				float b_n = (n.z + 1) / 2.0f;
 				return Color4f{ b_n, g_n, r_n, 1.0f };
 			}
 
