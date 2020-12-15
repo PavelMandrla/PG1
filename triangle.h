@@ -45,16 +45,18 @@ public:
 	/*!
 	\return Ukazatel na sí.
 	*/	
+
 	Surface * surface();
 
 	Vector3 getCenter();
 
 	Vector3 getNormal();
 
-	std::shared_ptr<Vector3> intersect(RTCRay ray);
+	std::shared_ptr<Vector3> intersect(RTCRay &ray);
 
 	Material* material;
 
+	float getArea();
 protected:
 
 private:

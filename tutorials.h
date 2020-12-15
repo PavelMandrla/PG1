@@ -7,5 +7,6 @@ int tutorial_1( const char * config = "threads=0,verbose=3" );
 int tutorial_2();
 int raytracerDemo( const std::string file_name, const char * config = "threads=0,verbose=0" );
 int pathtracerDemo( const std::string file_name, const char * config = "threads=0,verbose=0" );
+int BVHDemo( const std::string file_name, const char * config = "threads=0,verbose=0" );
 
 #endif

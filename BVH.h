@@ -1,57 +1,65 @@
 #pragma once
 
-#include <array>
 #include <vector>
-#include <algorithm>
 #include <memory>
 #include "triangle.h"
+#include <embree3/rtcore_ray.h>
 
-#include <iostream>
+class AABB;
+class Node;
 
-struct TriangleAndDistance {
-	std::shared_ptr<Triangle> triangle;
-	float distance;
-};
-
-struct AABB {
-	Vector3 bounds[2];
-	
-	AABB(){}
-	AABB(Vector3 v0, Vector3 v1) {
-		bounds[0] = v0;
-		bounds[1] = v1;
-	}
-	//float SurfaceArea() // for SAH
+struct Division {
+	std::shared_ptr<Node> left;
+	std::shared_ptr<Node> right;
 };
 
 class BVH : public std::enable_shared_from_this<BVH> {
 public:
-	BVH(std::vector<std::shared_ptr<Triangle>> items);
-	~BVH();
-
+	BVH(std::vector<Triangle *> triangles);
 	void initialize();
 	std::shared_ptr<Triangle> traverse(RTCRay & ray);
 
+	std::vector<Triangle *> triangles;
 private:
-	class Node {
-	private:
-		std::weak_ptr<BVH> bvh;
-		std::shared_ptr<AABB> bounds;
-	public:
-		int span[2];
-		std::shared_ptr<Node> children[2];
-
-		Node(int from, int to, std::shared_ptr<BVH> bvh);
-
-		std::shared_ptr<AABB> getAABB();
-		TriangleAndDistance intersect(RTCRay &ray);
-
-		bool isIntersected(RTCRay &ray);
-		bool isLeaf();
-	};
-	std::shared_ptr<Node> BuildTree(int from, int to, int depth);
 	
 	std::shared_ptr<Node> root;
-	std::vector<std::shared_ptr<Triangle>> items;
+
+	friend class Node;
+	friend class AABB;
 };
 
+class Node {
+public:
+	Node(int from, int to, std::shared_ptr<BVH> bvh);
+	bool isLeaf();
+	std::shared_ptr<AABB> getAABB();
+	
+	void buildTree(int level);
+
+	bool isIntersected(RTCRay ray);
+
+	std::shared_ptr<Triangle> traverse(RTCRay & ray);
+private:
+	std::weak_ptr<BVH> bvh;
+	std::shared_ptr<AABB> aabb;
+	std::shared_ptr<Node> children[2];
+
+	int from;
+	int to;
+	bool isLeaf_;
+
+	float getSAHNodeVal(float parentSA);
+	float getHitProbability(float parentSA);
+	float calculateSAH(Division div);
+
+	friend class AABB;
+};
+
+class AABB {
+public:
+	AABB(Node* node);
+	bool isIntersected(RTCRay ray);
+	float getSurfaceArea();
+private:
+	Vector3 bounds[2];
+};

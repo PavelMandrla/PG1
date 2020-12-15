@@ -11,6 +11,17 @@ PathTracer::PathTracer(const int width, const int height, const float fov_y, con
 	: Tracer(width, height, fov_y, view_from, view_at, config) {
 }
 
+void PathTracer::LoadScene(const std::string file_name) {
+	Tracer::LoadScene(file_name);
+	for (auto surface : surfaces_) {
+		if (surface->get_material()->isEmittingLight()) {
+			for (int i = 0, k = 0; i < surface->no_triangles(); ++i) {
+				//lightTriangles.push_back(surface->get_triangle(i));
+			}
+		}
+	}
+}
+
 void PathTracer::getCosWeightedSample(Vector3 n, Vector3 & omega_i, float & pdf) {
 	int threadId = omp_get_thread_num();
 	float xi_1 = this->rngs[threadId].getRandNum(0, 0.99999f);
@@ -57,7 +68,7 @@ Vector3 PathTracer::rotateVector(Vector3 v, Vector3 n) {
 }
 
 Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
-	const int multisampling_width = 50;
+	const int multisampling_width = 100;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 

@@ -6,6 +6,7 @@
 #include "mymath.h"
 #include "CudaRNG.h"
 #include "PathTracer.h"
+#include "BVH_tracer.h"
 
 /* error reporting function */
 void error_handler( void * user_ptr, const RTCError code, const char * str )
@@ -193,6 +194,15 @@ int pathtracerDemo(const std::string file_name, const char * config) {
 	
 	pathtracer.LoadScene(file_name);
 	pathtracer.MainLoop();
+
+	return EXIT_SUCCESS;
+}
+
+int BVHDemo(const std::string file_name, const char * config) {
+	BVH_tracer bvh_tracer(640, 480, deg2rad(30), Vector3(175, -140, 130), Vector3(0, 80, -20), config);
+	//Raytracer bvh_tracer(640, 480, deg2rad(30), Vector3(175, -140, 130), Vector3(0, 80, -20), config);
+	bvh_tracer.LoadScene(file_name);
+	bvh_tracer.MainLoop();
 
 	return EXIT_SUCCESS;
 }
