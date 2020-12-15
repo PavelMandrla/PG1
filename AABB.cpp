@@ -26,25 +26,32 @@ AABB::AABB(Node* node) {
 }
 
 bool AABB::isIntersected(RTCRay ray) {
-	std::vector<float> t_0{
-		(this->bounds[0].x - ray.org_x) / ray.dir_x,
-		(this->bounds[0].y - ray.org_y) / ray.dir_y,
-		(this->bounds[0].z - ray.org_z) / ray.dir_z
+	Vector3 d = {
+		ray.dir_x,
+		ray.dir_y,
+		ray.dir_z
 	};
-	std::vector<float> t_1{
-		(this->bounds[1].x - ray.org_x) / ray.dir_x,
-		(this->bounds[1].y - ray.org_y) / ray.dir_y,
-		(this->bounds[1].z - ray.org_z) / ray.dir_z
+	d.Normalize();
+
+	std::vector<float> t_0 {
+		(this->bounds[0].x - ray.org_x) / d.x,
+		(this->bounds[0].y - ray.org_y) / d.y,
+		(this->bounds[0].z - ray.org_z) / d.z
 	};
+	std::vector<float> t_1 {
+		(this->bounds[1].x - ray.org_x) / d.x,
+		(this->bounds[1].y - ray.org_y) / d.y,
+		(this->bounds[1].z - ray.org_z) / d.z
+	};
+
 	if (t_0[0] > t_1[0]) std::swap(t_0[0], t_1[0]);
 	if (t_0[1] > t_1[1]) std::swap(t_0[1], t_1[1]);
 	if (t_0[2] > t_1[2]) std::swap(t_0[2], t_1[2]);
 
-
 	float t0 = *(std::max_element)(t_0.begin(), t_0.end());
 	float t1 = *(std::min_element)(t_1.begin(), t_1.end());
 
-	if ((t0 < t1) && (0 < t1)) {	//TODO -> check if behind camera or in front of it
+	if ((t0 <= t1) && (0 < t1)) {
 		return true;
 	}
 	return false;

@@ -10,6 +10,7 @@ Node::Node(int from, int to, std::shared_ptr<BVH> bvh) {
 	this->to = to;
 	this->bvh = bvh;
 	this->isLeaf_ = false;
+	this->aabb = nullptr;
 }
 
 bool Node::isLeaf() {
@@ -17,12 +18,11 @@ bool Node::isLeaf() {
 }
 
 std::shared_ptr<AABB> Node::getAABB() {
-	if (this->aabb == nullptr) {
-		this->aabb = std::make_shared<AABB>(this);
+	if (this->aabb != nullptr) {
+		return this->aabb;
 	}
-	return this->aabb;
+	return std::make_shared<AABB>(this);
 }
-
 
 float Node::calculateSAH(Division div) {
 	float SA = this->getAABB()->getSurfaceArea();
@@ -93,25 +93,19 @@ void Node::buildTree(int level) {
 
 	this->children[0]->buildTree(level + 1);
 	this->children[1]->buildTree(level + 1);
+
+	this->aabb = std::make_shared<AABB>(this);
 }
 
-bool Node::isIntersected(RTCRay ray) {
-	return this->getAABB()->isIntersected(ray);
-}
 
 std::shared_ptr<Triangle> Node::traverse(RTCRay & ray) {
-	if (!this->isIntersected(ray)) {
-		ray.tfar = FLT_MAX;
-		return nullptr;
-	}
-
 	const Vector3 origin{ ray.org_x, ray.org_y, ray.org_z };
 	auto bvh_sp = this->bvh.lock();
 	
 	if (this->isLeaf()) {
 		std::shared_ptr<Triangle> bestTriangle = nullptr;
 		float bestTriangleDist = FLT_MAX;
-
+		
 		for (int i = from; i <= this->to; i++) {
 			auto hitPoint = bvh_sp->triangles[i]->intersect(ray);
 			if (hitPoint != nullptr) {
@@ -122,11 +116,14 @@ std::shared_ptr<Triangle> Node::traverse(RTCRay & ray) {
 				}
 			}
 		}
-		
-		//if (bestTriangleDist != FLT_MAX) 
-	//	std::cout << bestTriangleDist << std::endl;
+
 		ray.tfar = bestTriangleDist;
 		return bestTriangle;
+	}
+
+	if (!this->getAABB()->isIntersected(ray)) {
+		ray.tfar = FLT_MAX;
+		return nullptr;
 	}
 
 	RTCRay lRay(ray);
@@ -134,7 +131,7 @@ std::shared_ptr<Triangle> Node::traverse(RTCRay & ray) {
 	auto lRes = this->children[0]->traverse(lRay);
 	auto rRes = this->children[1]->traverse(rRay);
 
-	if (lRay.tfar < rRay.tfar) {
+	if (lRay.tfar <= rRay.tfar) {
 		ray.tfar = lRay.tfar;
 		return lRes;
 	}

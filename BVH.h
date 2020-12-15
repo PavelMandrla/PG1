@@ -36,8 +36,6 @@ public:
 	
 	void buildTree(int level);
 
-	bool isIntersected(RTCRay ray);
-
 	std::shared_ptr<Triangle> traverse(RTCRay & ray);
 private:
 	std::weak_ptr<BVH> bvh;
