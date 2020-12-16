@@ -77,20 +77,27 @@ Color3f Texture::get_texel( const float u, const float v ) const {
 	float x = u * float(width_);
 	float y = v * float(height_);
 
-	while (x > width_-1) x -= float(width_);
+	while (x > width_) x -= float(width_);
 	while (x < 0) x += float(width_);
-	while (y > width_-1) y -= float(width_);
+	while (y > height_) y -= float(width_);
 	while (y < 0) y += float(height_);
 	
 	float x1 = floor(x);
 	float x2 = ceil(x);
-	x2 -= x2 >= width_ ? width_ : 0;
 	float y1 = floor(y);
 	float y2 = ceil(y);
-	y2 = y2 >= height_ ? y1 : y2;
 
-	auto f_xy1 = valAt(x1, y1) * float((x2 - x) / (x2 - x1)) + valAt(x2, y1) * float((x - x1) / (x2 - x1));
-	auto f_xy2 = valAt(x1, y2) * ((x2 - x) / (x2 - x1)) + valAt(x2, y2) * ((x - x1) / (x2 - x1));
+	int x1ColPos = int(x1);
+	int x2ColPos = x2 == width_ ? 0 : int(x2);
+	int y1ColPos = int(y1);
+	int y2ColPos = y2 == height_ ? int(y1) : int(y2);
+
+	if (x2 == x1 || y1 == y2) {
+		return Color3f{ 1,0,0 };
+	}
+
+	auto f_xy1 = valAt(x1ColPos, y1ColPos) * float((x2 - x) / (x2 - x1)) + valAt(x2ColPos, y1ColPos) * float((x - x1) / (x2 - x1));
+	auto f_xy2 = valAt(x1ColPos, y2ColPos) * float((x2 - x) / (x2 - x1)) + valAt(x2ColPos, y2ColPos) * float((x - x1) / (x2 - x1));
 	return f_xy1 * ((y2 - y) / (y2 - y1)) + f_xy2 * ((y - y1) / (y2 - y1));
 }
 

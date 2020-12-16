@@ -107,21 +107,6 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 		Vector3 org(ray.org_x, ray.org_y, ray.org_z);
 		Vector3 hitPoint = org + d * ray_hit.ray.tfar;
 
-		/*
-		std::shared_ptr<Triangle> triangle = this->bvh->traverse(ray);	//BVH
-		if (triangle != nullptr) {
-			Vector3 bvhHitPoint = org + d * ray_hit.ray.tfar;
-			std::cout << "orig {" << bvhHitPoint.x << ", " << bvhHitPoint.y << ", " << bvhHitPoint.z << "}" << std::endl;
-			std::cout << "bvh  {" << hitPoint.x << ", " << hitPoint.y << ", " << hitPoint.z << "}" << std::endl;
-			return Color4f{
-				triangle->material->diffuse.x,
-				triangle->material->diffuse.y,
-				triangle->material->diffuse.z,
-				1.0
-			};
-		}
-		*/
-
 		switch (material->type) {
 			case 1: { // LAMBERT SHADER
 				Color4f result{ 0,0,0,1 };
@@ -192,7 +177,6 @@ Color4f Raytracer::trace(RTCRay ray, int level, float rayIOR) {
 			}
 		}
 	}
-
 	return this->sphericalMap->getBackgroundColor(ray.dir_x, ray.dir_y, ray.dir_z);
 }
 
@@ -272,23 +256,31 @@ bool Raytracer::isBlocked(LightSource lightSrc, Vector3 hitPoint) {
 
 Color4f Raytracer::get_pixel( const int x, const int y, const float t ) {
 	
-	const int multisampling_width = 2;
+	const int multisampling_width = 3;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 
+	if (multisampling_width == 1) {
+		RTCRay primaryRay = camera_.GenerateRay(x, y);
+		return trace(primaryRay, 0);
+	}
+
 	#pragma omp parallel for num_threads(this->threadCount)
 	for (int fieldX = 0; fieldX < multisampling_width; fieldX++) {
+		
 		float msX = fieldX * (1.0f / multisampling_width);
 		for (int fieldY = 0; fieldY < multisampling_width; fieldY++) {
 			float msY = fieldY * (1.0f / multisampling_width);
 			int tid = omp_get_thread_num();
+
 			float rand1 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 			float rand2 = this->rngs[tid].getRandNum(-0.5f / multisampling_width, 0.5f / multisampling_width);
 
 			RTCRay primaryRay = camera_.GenerateRay(x + msX + rand1, y + msY + rand2, this->focalDistance, this->apertureSize, this->rngs[tid]);
 			result_colors[fieldX][fieldY] = trace(primaryRay, 0);
 		}
+		
 	}
 
 	Color4f tmpMultisamplingColor{ 0.0f, 0.0f, 0.0f, 1.0f };

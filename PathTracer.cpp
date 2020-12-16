@@ -68,7 +68,7 @@ Vector3 PathTracer::rotateVector(Vector3 v, Vector3 n) {
 }
 
 Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
-	const int multisampling_width = 100;
+	const int multisampling_width = 20;
 	const int multisamplingTotal = multisampling_width * multisampling_width;
 	std::array<std::array<Color4f, multisampling_width>, multisampling_width> result_colors;
 
@@ -99,7 +99,7 @@ Color4f PathTracer::get_pixel(const int x, const int y, const float t) {
 }
 
 Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
-	if (level > 100) {
+	if (level > 20) {
 		return Color4f{ 0, 0, 0, 0 };
 	}
 	RTCRayHit ray_hit = this->rayIntersectScene(ray);
@@ -211,8 +211,9 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 				Vector3 k_s = material->specular * k_s_tmp;
 				
 				f_r = k_d + k_s;
+				break;
 			}
-			case 6: {	// PHONG (energy-conserved)
+			case 5: {	// PHONG (energy-conserved)
 				int threadId = omp_get_thread_num();
 				float diffuseMax = (std::max)({ material->diffuse.x, material->diffuse.y, material->diffuse.z });
 				float specularMax = (std::max)({ material->specular.x, material->specular.y, material->specular.z });
@@ -242,8 +243,9 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 
 				float I_m = (material->shininess + 2) / (2 * float(M_PI) * theta_i);
 				f_r = Vector3{ material->specular.x, material->specular.y, material->specular.z } * I_m * (std::max)(0.0f, pow(theta_r, material->shininess));
+				break;
 			}
-			case 5: {
+			case 6: { // PHONG (energy-normalized)
 				int threadId = omp_get_thread_num();
 				float diffuseMax = (std::max)({ material->diffuse.x, material->diffuse.y, material->diffuse.z });
 				float specularMax = (std::max)({ material->specular.x, material->specular.y, material->specular.z });
@@ -273,6 +275,7 @@ Color4f PathTracer::trace(RTCRay ray, int level, float rayIOR) {
 
 				float I_m = this->calc_I_M(theta_i, material->shininess);
 				f_r = (Vector3{ material->specular.x, material->specular.y, material->specular.z } / I_m) * (std::max)(0.0f, pow(theta_r, material->shininess));
+				break;
 			}
 
 		}
