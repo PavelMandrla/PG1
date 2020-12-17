@@ -23,13 +23,16 @@ public:
 	void LoadScene(const std::string file_name);
 	
 private:
-	//std::vector<Triangle&> lightTriangles;
+	std::vector<Triangle*> lightTriangles;
 
 	void getCosWeightedSample(Vector3 n, Vector3 &omega_i, float &pdf);
 	void getCosLobeSample(float gamma, Vector3 d, Vector3 n, Vector3 & omega_i, float & pdf);
+
 	Vector3 rotateVector(Vector3 v, Vector3 n);
 	virtual Color4f trace(RTCRay ray, int level, float rayIOR = 1) override;
 
 	float calc_I_M(float NdotV, float n);
+
+	void directSample(Vector3 hitPoint, Vector3 n, Vector3 &omega_i, float &pdf, float &c_theta_i);
 };
 
